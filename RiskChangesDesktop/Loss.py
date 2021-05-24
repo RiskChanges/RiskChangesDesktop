@@ -1,3 +1,4 @@
+import psycopg2
 import pandas as pd
 import numpy
 import geopandas as gpd
@@ -56,6 +57,9 @@ def checknconvert(exposuretable,hazunit,vulnunit,multiplyfactor=1):
         mulfactor=multiplyfactor
         exposuretable['meanHazard']=exposuretable['meanHazard']*mulfactor  
     return exposuretable
+import numpy as np
+import pandas as pd
+import geopandas as gpd
 def getVulnerability(exposuretable,vulnColumn,vulndir,haztype):
         if haztype=="Intensity":  
             final_df=pd.DataFrame()
@@ -67,14 +71,13 @@ def getVulnerability(exposuretable,vulnColumn,vulndir,haztype):
                 vulnerbaility['mean_x'] =vulnerbaility.apply(lambda row: (row.hazintensity_from+row.hazintensity_to)/2, axis=1)
                 y=vulnerbaility.vulnAVG.values 
                 x=vulnerbaility.mean_x.values 
-                #return (X,Y)
-                z=np.polyfit(x, y, 10)
-                poly = np.poly1d(z)
-                
 
                 subset_exp=exposuretable[exposuretable[vulnColumn]==i]
-                subset_exp["vuln"]=poly(subset_exp.meanHazard)
+                subset_exp["vuln"]=np.interp(subset_exp.meanHazard, x, y, left=0, right=1)
                 final_df=final_df.append(subset_exp, ignore_index = True)
+                final_df.loc[final_df.vuln<0,'vuln':]=0
+                final_df.loc[final_df.vuln>1,'vuln':]=1
+                
             exposuretable=None
             exposuretable=final_df
         elif haztype=="susceptibility":
@@ -116,6 +119,7 @@ def computeLoss(exposure,ear,ear_key,costcol,vulncol,vulndir,haztype,outputfile,
     exposure_data=checknconvert(exposure_data,hazunit,vulnunit,multiplyfactor)
     exposure_data=getVulnerability(exposure_data,vulncol,vulndir,haztype)
     loss=calculateLoss(exposure_data,aggregation,costcol,spprob)
+    #return loss,exposure_data
     loss_geom=mergeGeometry(loss,ear,ear_key)
     if outputformat=="shp":
         saveshp(loss_geom,outputfile)

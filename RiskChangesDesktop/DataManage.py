@@ -16,16 +16,21 @@ def reclassify(in_image,out_image,base,stepsize):
     prev=base
     i=1
     thresholds=np.arange(start=base,stop=maxval+stepsize,step=stepsize)[1:].tolist()
+    #print(thresholds)
     intensity_data[intensity_data<base]=input_image.get_nodatavals()[0]
+    intensity_data_classified=np.copy(intensity_data)
     for threshold in thresholds:
-        intensity_data[(intensity_data<threshold) & (intensity_data>=prev)]=i
+        #mean=intensity_data[((intensity_data<threshold) & (intensity_data>=prev))].mean()
+        intensity_data_classified[((intensity_data<threshold) & (intensity_data>=prev))]=i
+        mean=intensity_data_classified[((intensity_data<threshold) & (intensity_data>=prev))].mean()
+        #print(mean)
         i+=1
         prev=threshold
-        
+
     with rasterio.Env():
         profile = input_image.profile
         with rasterio.open(out_image, 'w', **profile) as dst:
-            dst.write(intensity_data.astype(rasterio.float32), 1)
+            dst.write(intensity_data_classified, 1)
         dst=None
     input_image=None
 def ClassifyHazard(hazard_file,base,stepsize):

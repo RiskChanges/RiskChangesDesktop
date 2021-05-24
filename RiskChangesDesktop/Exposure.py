@@ -13,21 +13,21 @@ from rasterio.mask import mask
 import tqdm.notebook as tqdm
 import numpy.ma as ma
 import numpy as np
-def Exposure(input_zone, input_value_raster,Ear_Table_PK):
+def Exposure(input_zone, input_value_raster,Ear_Table_PK,agg_col=None):
     vector=ogr.Open(input_zone)
     lyr =vector.GetLayer()
     feat = lyr.GetNextFeature()
     geom = feat.GetGeometryRef()
     geometrytype=geom.GetGeometryName()
     if (geometrytype== 'POLYGON' or geometrytype== 'MULTIPOLYGON'):
-        return zonalPoly(input_zone,input_value_raster,Ear_Table_PK,agg_col=None)
+        return zonalPoly(input_zone,input_value_raster,Ear_Table_PK,agg_col=agg_col)
         
     elif(geometrytype=='POINT' or geometrytype=='MULTIPOINT'):
-        return zonalLine(input_zone,input_value_raster,Ear_Table_PK,agg_col=None)
+        return zonalLine(input_zone,input_value_raster,Ear_Table_PK,agg_col=agg_col)
         
     elif(geometrytype=='LINESTRING' or geometrytype=='MULTILINESTRING'):
-        return zonalPoint(lyr,input_value_raster,Ear_Table_PK,agg_col=None)
-def zonalPoly(input_zone_data,input_value_raster,Ear_Table_PK,agg_col=None):
+        return zonalPoint(lyr,input_value_raster,Ear_Table_PK,agg_col=agg_col)
+def zonalPoly(input_zone_data,input_value_raster,Ear_Table_PK,agg_col):
     raster=rasterio.open(input_value_raster)
     data=gpd.read_file(input_zone_data)
     df=pd.DataFrame()
@@ -55,11 +55,14 @@ def zonalPoly(input_zone_data,input_value_raster,Ear_Table_PK,agg_col=None):
         #print(frequencies)
         df_temp= pd.DataFrame(frequencies, columns=['class','exposed'])
         df_temp['geom_id']=row[Ear_Table_PK]
+        if agg_col != None :
+            df_temp['admin_unit']=row[agg_col]  
+            df_temp['areaOrLen']=row.geometry.area
         df=df.append(df_temp,ignore_index=True)
     
     raster=None 
     return df
-def zonalLine(lyr,input_value_raster,Ear_Table_PK,agg_col=None):
+def zonalLine(lyr,input_value_raster,Ear_Table_PK,agg_col):
     tempDict={}
     featlist=range(lyr.GetFeatureCount())
     raster = gdal.Open(input_value_raster)
@@ -190,7 +193,7 @@ def ComputeExposureAgg(ear,hazard,ear_key,admin_unit,agg_col,outputname,outputfo
     ear_data=gpd.read_file(ear)
     admin_data=gpd.read_file(admin_unit)
     ear_temp=gpd.overlay(ear_data, admin_data, how='intersection', make_valid=True, keep_geom_type=True)
-    
+    #ear_temp=ear_temp.rename(columns={agg_col:'admin_unit'})
     tempfile=ear.replace(".shp","_tempadmin.shp")
     ear_temp.to_file(tempfile)
     ear=tempfile
@@ -202,6 +205,6 @@ def ComputeExposureAgg(ear,hazard,ear_key,admin_unit,agg_col,outputname,outputfo
     exposure_merged=admin_data.merge(agg_exposure, how='right', left_on=[agg_col], right_on=['admin_unit'])
     #return exposure_merged
     if outputformat=="shp":
-        saveshp(exposure_merged,outputdir)
+        saveshp(exposure_merged,outputname)
     if outputformat=="csv":
-        savecsv(exposure_merged,outputdir)
+        savecsv(exposure_merged,outputname)
